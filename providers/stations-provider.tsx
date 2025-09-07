@@ -1,8 +1,7 @@
-import { supabase } from "@/lib/supabase";
 import createContextHook from "@nkzw/create-context-hook";
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export interface Station {
   id: string;
@@ -21,9 +20,6 @@ export interface Station {
   specificYield: number;
   installationDate: string;
   depth: number;
-  oxygenLevel?: number;
-  temperature?: number;
-  week?: number | string;
   recentReadings: {
     timestamp: string;
     level: number;
@@ -212,50 +208,45 @@ const mockStations: Station[] = [
 const mockAlerts: Alert[] = [
   {
     id: "alert_001",
-    stationId: "DWLR_001",
-    stationName: "Colaba",
+    stationId: "DWLR_003",
+    stationName: "Muzaffarpur East",
     type: "critical",
     title: "Critical Water Level Drop",
-    message:
-      "Water level has dropped below critical threshold of 2m. Immediate action required to avoid shortages.",
-    timestamp: "2025-09-11T09:45:00Z",
+    message: "Water level has dropped below critical threshold of 25m. Immediate attention required.",
+    timestamp: "2024-01-15T09:45:00Z",
     isRead: false,
   },
   {
     id: "alert_002",
     stationId: "DWLR_002",
-    stationName: "Worli",
+    stationName: "Gaya North",
     type: "warning",
     title: "Low Battery Alert",
-    message:
-      "Station battery level is at 40%. Please schedule maintenance soon.",
-    timestamp: "2025-09-11T08:30:00Z",
+    message: "Station battery level is at 45%. Maintenance required soon.",
+    timestamp: "2024-01-15T08:30:00Z",
     isRead: false,
   },
   {
     id: "alert_003",
-    stationId: "DWLR_003",
-    stationName: "Bandra West",
+    stationId: "DWLR_004",
+    stationName: "Darbhanga Central",
     type: "info",
     title: "Recharge Event Detected",
-    message:
-      "Groundwater recharge observed after heavy rainfall across Western Suburbs.",
-    timestamp: "2025-09-11T07:15:00Z",
+    message: "Significant groundwater recharge detected after recent rainfall.",
+    timestamp: "2024-01-15T07:15:00Z",
     isRead: true,
   },
   {
     id: "alert_004",
-    stationId: "DWLR_004",
-    stationName: "Andheri East",
+    stationId: "DWLR_005",
+    stationName: "Bhagalpur South",
     type: "warning",
     title: "Declining Trend Alert",
-    message:
-      "Water level showing consistent declining trend over the past 10 days.",
-    timestamp: "2025-09-10T16:20:00Z",
+    message: "Water level showing consistent declining trend over past 7 days.",
+    timestamp: "2024-01-14T16:20:00Z",
     isRead: false,
   },
 ];
-
 
 // Helper function to calculate distance between two coordinates
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -277,157 +268,12 @@ export interface LocationData {
 }
 
 export const [StationsProvider, useStations] = createContextHook(() => {
-  const [stations, setStations] = useState<Station[]>(mockStations);
+  const stations = mockStations;
   const alerts = mockAlerts;
   const [userLocation, setUserLocation] = useState<LocationData | null>(null);
   const [locationPermission, setLocationPermission] = useState<Location.LocationPermissionResponse | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [isLoadingStations, setIsLoadingStations] = useState<boolean>(false);
-  const [stationsError, setStationsError] = useState<string | null>(null);
-
-  // Map Supabase row to Station shape
-  const getWeekNumber = (dateStr?: string): number | undefined => {
-    if (!dateStr) return undefined;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return undefined;
-    const oneJan = new Date(d.getFullYear(), 0, 1);
-    const dayOfYear = Math.floor((d.getTime() - oneJan.getTime()) / 86400000) + 1;
-    return Math.ceil(dayOfYear / 7);
-  };
-
-  const mapRowToStation = (row: any): Station => {
-    return {
-      id: String(row.id ?? row.station_id ?? row.Station_ID ?? row.P_Key ?? row.pkey ?? row.P_Key),
-      name: (row.name ?? row.station_id ?? row.Station_ID ?? `Station ${row.id ?? row.P_Key}`) as string,
-      district: row.district ?? "",
-      state: row.state ?? "",
-      latitude: Number(row.latitude ?? row.Latitude ?? row.lat),
-      longitude: Number(row.longitude ?? row.Longitude ?? row.lon),
-      currentLevel: Number(row.water_level ?? row.waterlevel ?? row.Water_Level_m ?? 0),
-      status: "normal",
-      batteryLevel: 100,
-      signalStrength: 100,
-      availabilityIndex: 1,
-      lastUpdated: (row.date ?? row.Date) ? new Date(row.date ?? row.Date).toISOString() : new Date().toISOString(),
-      aquiferType: row.aquifer_type ?? "",
-      specificYield: Number(row.specific_yield ?? 0),
-      installationDate: row.installation_date ?? new Date().toISOString().slice(0,10),
-      depth: Number(row.depth ?? 0),
-      oxygenLevel: row.Dissolved_Oxygen_mg_L != null ? Number(row.Dissolved_Oxygen_mg_L) : (row.oxygen_level != null ? Number(row.oxygen_level) : (row.oxygen != null ? Number(row.oxygen) : undefined)),
-      temperature: row.Temperature_C != null ? Number(row.Temperature_C) : (row.temperature != null ? Number(row.temperature) : undefined),
-      week: row.week ?? getWeekNumber(row.date ?? row.Date),
-      recentReadings: [
-        { timestamp: (row.date ?? row.Date) ? new Date(row.date ?? row.Date).toISOString() : new Date().toISOString(), level: Number(row.water_level ?? row.waterlevel ?? row.Water_Level_m ?? 0), temperature: Number((row.temperature ?? row.Temperature_C) ?? 0) },
-      ],
-      rechargeData: [],
-    };
-  };
-
-  // Map from Map_pinpoints2.0 row to Station
-  const mapPinpointRowToStation = (row: any): Station => {
-    const statusMap: Record<string, Station["status"]> = {
-      Light: "normal",
-      Moderate: "warning",
-      Heavy: "critical",
-      None: "normal",
-    };
-    const lat = parseFloat(String(row.Latitude ?? row.latitude ?? ''));
-    const lon = parseFloat(String(row.Longitude ?? row.longitude ?? ''));
-    return {
-      id: String(row.Serial_No ?? row.id ?? row.P_Key ?? Math.random()),
-      name: String(row.Area_Name ?? row.name ?? `Station ${row.Serial_No ?? row.id ?? ''}`),
-      district: "",
-      state: "",
-      latitude: isFinite(lat) ? lat : 0,
-      longitude: isFinite(lon) ? lon : 0,
-      currentLevel: 0,
-      status: statusMap[String(row.DWLR_Status ?? '').trim()] ?? "normal",
-      batteryLevel: 100,
-      signalStrength: 100,
-      availabilityIndex: 1,
-      lastUpdated: new Date().toISOString(),
-      aquiferType: "",
-      specificYield: 0,
-      installationDate: new Date().toISOString().slice(0, 10),
-      depth: 0,
-      oxygenLevel: undefined,
-      temperature: undefined,
-      week: undefined,
-      recentReadings: [],
-      rechargeData: [],
-    };
-  };
-
-  // Fetch stations from Supabase using ONLY recent_data (do not use pin_point_database)
-  const fetchStations = useCallback(async () => {
-    try {
-      setIsLoadingStations(true);
-      setStationsError(null);
-
-      // Fetch recent groundwater data (latest first) from recent_data
-      const { data: recentData, error: recentErr } = await supabase
-        .from('recent_data')
-        .select('*')
-        .order('Date', { ascending: false });
-
-      if (recentErr) throw recentErr;
-
-      // Deduplicate by Serial_No to keep only the latest record per station
-      const latestBySerial: Record<string, any> = {};
-      for (const row of (recentData ?? [])) {
-        const serial = String(row.Serial_No ?? row.serial_no ?? '');
-        if (!serial) continue;
-        if (!latestBySerial[serial]) {
-          latestBySerial[serial] = row;
-        }
-      }
-
-      // Map recent_data rows to Station objects
-      const mappedFromRecent: Station[] = Object.values(latestBySerial)
-        .map((row: any) => {
-          const lat = Number(row.Latitude);
-          const lon = Number(row.Longitude);
-          const level = Number(row.Groundwater_Level_m);
-          const temp = row.Temperature_C != null ? Number(row.Temperature_C) : undefined;
-          const oxy = row.Oxygen_mgL != null ? Number(row.Oxygen_mgL) : undefined;
-          const dateStr = row.Date ? new Date(row.Date).toISOString() : new Date().toISOString();
-
-          return {
-            id: String(row.Serial_No),
-            name: String(row.Area_Name ?? row.Serial_No),
-            district: "",
-            state: "",
-            latitude: Number.isFinite(lat) ? lat : 0,
-            longitude: Number.isFinite(lon) ? lon : 0,
-            currentLevel: Number.isFinite(level) ? level : 0,
-            status: "normal",
-            batteryLevel: 100,
-            signalStrength: 100,
-            availabilityIndex: 1,
-            lastUpdated: dateStr,
-            aquiferType: "",
-            specificYield: 0,
-            installationDate: new Date().toISOString().slice(0,10),
-            depth: 0,
-            oxygenLevel: oxy,
-            temperature: temp,
-            week: (() => { const d = new Date(dateStr); const oneJan = new Date(d.getFullYear(), 0, 1); const dayOfYear = Math.floor((d.getTime() - oneJan.getTime()) / 86400000) + 1; return Math.ceil(dayOfYear / 7); })(),
-            recentReadings: [ { timestamp: dateStr, level: Number.isFinite(level) ? level : 0, temperature: temp } ],
-            rechargeData: [],
-          } as Station;
-        })
-        .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude));
-
-      console.log('Supabase recent_data rows:', recentData?.length ?? 0, 'mapped(valid):', mappedFromRecent.length);
-      setStations(mappedFromRecent);
-    } catch (err: any) {
-      console.log('Supabase fetch error:', err);
-      setStationsError(err?.message || 'Failed to load stations');
-    } finally {
-      setIsLoadingStations(false);
-    }
-  }, []);
 
   // Request location permission and get current location
   const requestLocationPermission = useCallback(async () => {
@@ -490,16 +336,14 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     }
   }, []);
 
-  // Get nearby stations based on user location (within a radius if possible)
+  // Get nearby stations based on user location
   const nearbyStations = useMemo(() => {
     if (!userLocation) {
       // Return first 4 stations if no location available
       return stations.slice(0, 4);
     }
-
-    const RADIUS_KM = 50; // configurable nearby radius
-
-    // Calculate distances
+    
+    // Calculate distances and sort by proximity
     const stationsWithDistance = stations.map(station => ({
       ...station,
       distance: calculateDistance(
@@ -509,59 +353,16 @@ export const [StationsProvider, useStations] = createContextHook(() => {
         station.longitude
       )
     }));
-
-    // Filter within radius, else fallback to closest 6
-    const withinRadius = stationsWithDistance.filter(s => (s as any).distance <= RADIUS_KM);
-    const sorted = (withinRadius.length > 0 ? withinRadius : stationsWithDistance)
-      .sort((a, b) => (a as any).distance - (b as any).distance);
-
-    return sorted.slice(0, 6);
-  }, [stations, userLocation]);
-
-  // Estimated groundwater level at user's live location via IDW (k-nearest)
-  const estimatedLevel = useMemo(() => {
-    if (!userLocation) return null as number | null;
-    const candidates = stations
-      .filter(s => Number.isFinite(s.currentLevel) && Number.isFinite(s.latitude) && Number.isFinite(s.longitude));
-    if (candidates.length === 0) return null as number | null;
-
-    // Compute distances
-    const withDistance = candidates.map(s => ({
-      station: s,
-      distanceKm: calculateDistance(userLocation.latitude, userLocation.longitude, s.latitude, s.longitude),
-    }));
-
-    // If any station is exactly at user's location, return its level
-    const atSameSpot = withDistance.find(x => x.distanceKm === 0);
-    if (atSameSpot) return atSameSpot.station.currentLevel;
-
-    // Use k nearest
-    const K = 5;
-    const P = 1; // IDW power
-    const MIN_DIST = 0.001; // km safeguard
-    const nearest = withDistance.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, K);
-
-    let numerator = 0;
-    let denominator = 0;
-    for (const item of nearest) {
-      const d = Math.max(item.distanceKm, MIN_DIST);
-      const w = 1 / Math.pow(d, P);
-      numerator += item.station.currentLevel * w;
-      denominator += w;
-    }
-    if (denominator === 0) return null as number | null;
-    return numerator / denominator;
+    
+    return stationsWithDistance
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 6); // Return top 6 nearest stations
   }, [stations, userLocation]);
 
   // Auto-request location on mount
   useEffect(() => {
     requestLocationPermission();
   }, [requestLocationPermission]);
-
-  // Load stations on mount and on focus changes in future
-  useEffect(() => {
-    fetchStations();
-  }, [fetchStations]);
 
   const getStationById = useCallback((id: string) => {
     return stations.find(station => station.id === id);
@@ -573,10 +374,10 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     const criticalStations = stations.filter(station => station.status === "critical").length;
 
     const regionalData = [
-      { state: "Pune", avgLevel: 16.2, status: "warning" as const },
-      { state: "Thane", avgLevel: 22.8, status: "critical" as const },
-      { state: "Mira Bhyandar", avgLevel: 11.5, status: "normal" as const },
-      { state: "Nagpur", avgLevel: 18.9, status: "warning" as const },
+      { state: "Bihar", avgLevel: 16.2, status: "warning" as const },
+      { state: "Uttar Pradesh", avgLevel: 22.8, status: "critical" as const },
+      { state: "West Bengal", avgLevel: 11.5, status: "normal" as const },
+      { state: "Jharkhand", avgLevel: 18.9, status: "warning" as const },
     ];
 
     return {
@@ -591,15 +392,12 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     stations,
     alerts,
     nearbyStations,
-    estimatedLevel,
     userLocation,
     locationPermission,
     isLoadingLocation,
     locationError,
-    isLoadingStations,
-    stationsError,
     getStationById,
     getAnalytics,
     requestLocationPermission,
-  }), [stations, alerts, nearbyStations, userLocation, locationPermission, isLoadingLocation, locationError, isLoadingStations, stationsError, getStationById, getAnalytics, requestLocationPermission]);
+  }), [stations, alerts, nearbyStations, userLocation, locationPermission, isLoadingLocation, locationError, getStationById, getAnalytics, requestLocationPermission]);
 });

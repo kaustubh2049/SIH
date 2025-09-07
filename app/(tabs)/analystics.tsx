@@ -19,9 +19,8 @@ function AnalyticsScreenContent() {
   const insets = useSafeAreaInsets();
 
   const timeframeOptions = [
+    { key: "7d" as const, label: "7 Days" },
     { key: "30d" as const, label: "30 Days" },
-    { key: "6M" as const, label: "6 Months" },
-
     { key: "1y" as const, label: "1 Year" },
   ];
 

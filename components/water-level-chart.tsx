@@ -31,26 +31,16 @@ export function WaterLevelChart({ station, timeframe }: WaterLevelChartProps) {
   const minY = Math.min(...data.map(d => d.y));
   const yRange = Math.max(maxY - minY, 1);
 
-  // Avoid division by zero when there is only a single data point
-  const xDenominator = Math.max(data.length - 1, 1);
-  const getScaledX = (x: number) => (x / xDenominator) * chartWidth;
+  const getScaledX = (x: number) => (x / (data.length - 1)) * chartWidth;
   const getScaledY = (y: number) => chartHeight - ((y - minY) / yRange) * chartHeight;
 
-  // For a single point, draw a small horizontal segment to avoid invalid path
-  const pathData = (() => {
-    if (data.length === 1) {
-      const x = getScaledX(0);
-      const y = getScaledY(data[0].y);
-      return `M ${x - 0.001} ${y} L ${x + 0.001} ${y}`;
-    }
-    return data
-      .map((point, index) => {
-        const x = getScaledX(point.x);
-        const y = getScaledY(point.y);
-        return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-      })
-      .join(" ");
-  })();
+  const pathData = data
+    .map((point, index) => {
+      const x = getScaledX(point.x);
+      const y = getScaledY(point.y);
+      return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+    })
+    .join(" ");
 
   return (
     <View style={styles.container}>

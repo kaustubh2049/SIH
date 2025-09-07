@@ -22,8 +22,8 @@ export function TrendsTab({ station }: TrendsTabProps) {
     };
   };
 
-  const weeklyTrend = station.recentReadings.length >= 2 ? calculateTrend(7) : { value: 0, direction: "stable" as const };
-  const monthlyTrend = station.recentReadings.length >= 2 ? calculateTrend(30) : { value: 0, direction: "stable" as const };
+  const weeklyTrend = calculateTrend(7);
+  const monthlyTrend = calculateTrend(30);
 
   const getTrendIcon = (direction: string) => {
     switch (direction) {
@@ -89,25 +89,25 @@ export function TrendsTab({ station }: TrendsTabProps) {
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Min Level (30d)</Text>
           <Text style={styles.statValue}>
-            {station.recentReadings.length > 0 ? Math.min(...station.recentReadings.map(r => r.level)).toFixed(2) : "-"}m
+            {Math.min(...station.recentReadings.map(r => r.level)).toFixed(2)}m
           </Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Max Level (30d)</Text>
           <Text style={styles.statValue}>
-            {station.recentReadings.length > 0 ? Math.max(...station.recentReadings.map(r => r.level)).toFixed(2) : "-"}m
+            {Math.max(...station.recentReadings.map(r => r.level)).toFixed(2)}m
           </Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Average Level</Text>
           <Text style={styles.statValue}>
-            {station.recentReadings.length > 0 ? (station.recentReadings.reduce((sum, r) => sum + r.level, 0) / station.recentReadings.length).toFixed(2) : "-"}m
+            {(station.recentReadings.reduce((sum, r) => sum + r.level, 0) / station.recentReadings.length).toFixed(2)}m
           </Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Variability</Text>
           <Text style={styles.statValue}>
-            {station.recentReadings.length > 1 ? (Math.max(...station.recentReadings.map(r => r.level)) - Math.min(...station.recentReadings.map(r => r.level))).toFixed(2) : "-"}m
+            {(Math.max(...station.recentReadings.map(r => r.level)) - Math.min(...station.recentReadings.map(r => r.level))).toFixed(2)}m
           </Text>
         </View>
       </View>
