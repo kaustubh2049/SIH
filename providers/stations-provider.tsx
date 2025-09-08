@@ -1,7 +1,8 @@
+import { supabase } from "@/lib/supabase";
 import createContextHook from "@nkzw/create-context-hook";
 import * as Location from 'expo-location';
-import { Platform } from 'react-native';
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Platform } from 'react-native';
 
 export interface Station {
   id: string;
@@ -20,6 +21,9 @@ export interface Station {
   specificYield: number;
   installationDate: string;
   depth: number;
+  oxygenLevel?: number;
+  temperature?: number;
+  week?: number | string;
   recentReadings: {
     timestamp: string;
     level: number;
@@ -268,12 +272,105 @@ export interface LocationData {
 }
 
 export const [StationsProvider, useStations] = createContextHook(() => {
-  const stations = mockStations;
+  const [stations, setStations] = useState<Station[]>(mockStations);
   const alerts = mockAlerts;
   const [userLocation, setUserLocation] = useState<LocationData | null>(null);
   const [locationPermission, setLocationPermission] = useState<Location.LocationPermissionResponse | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLoadingStations, setIsLoadingStations] = useState<boolean>(false);
+  const [stationsError, setStationsError] = useState<string | null>(null);
+
+  // Map Supabase row to Station shape
+  const getWeekNumber = (dateStr?: string): number | undefined => {
+    if (!dateStr) return undefined;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return undefined;
+    const oneJan = new Date(d.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((d.getTime() - oneJan.getTime()) / 86400000) + 1;
+    return Math.ceil(dayOfYear / 7);
+  };
+
+  const mapRowToStation = (row: any): Station => {
+    return {
+      id: String(row.id ?? row.station_id ?? row.Station_ID ?? row.P_Key ?? row.pkey ?? row.P_Key),
+      name: (row.name ?? row.station_id ?? row.Station_ID ?? `Station ${row.id ?? row.P_Key}`) as string,
+      district: row.district ?? "",
+      state: row.state ?? "",
+      latitude: Number(row.latitude ?? row.Latitude ?? row.lat),
+      longitude: Number(row.longitude ?? row.Longitude ?? row.lon),
+      currentLevel: Number(row.water_level ?? row.waterlevel ?? row.Water_Level_m ?? 0),
+      status: "normal",
+      batteryLevel: 100,
+      signalStrength: 100,
+      availabilityIndex: 1,
+      lastUpdated: (row.date ?? row.Date) ? new Date(row.date ?? row.Date).toISOString() : new Date().toISOString(),
+      aquiferType: row.aquifer_type ?? "",
+      specificYield: Number(row.specific_yield ?? 0),
+      installationDate: row.installation_date ?? new Date().toISOString().slice(0,10),
+      depth: Number(row.depth ?? 0),
+      oxygenLevel: row.Dissolved_Oxygen_mg_L != null ? Number(row.Dissolved_Oxygen_mg_L) : (row.oxygen_level != null ? Number(row.oxygen_level) : (row.oxygen != null ? Number(row.oxygen) : undefined)),
+      temperature: row.Temperature_C != null ? Number(row.Temperature_C) : (row.temperature != null ? Number(row.temperature) : undefined),
+      week: row.week ?? getWeekNumber(row.date ?? row.Date),
+      recentReadings: [
+        { timestamp: (row.date ?? row.Date) ? new Date(row.date ?? row.Date).toISOString() : new Date().toISOString(), level: Number(row.water_level ?? row.waterlevel ?? row.Water_Level_m ?? 0), temperature: Number((row.temperature ?? row.Temperature_C) ?? 0) },
+      ],
+      rechargeData: [],
+    };
+  };
+
+  // Map from Map_pinpoints2.0 row to Station
+  const mapPinpointRowToStation = (row: any): Station => {
+    const statusMap: Record<string, Station["status"]> = {
+      Light: "normal",
+      Moderate: "warning",
+      Heavy: "critical",
+      None: "normal",
+    };
+    return {
+      id: String(row.Serial_No ?? row.id ?? row.P_Key ?? Math.random()),
+      name: String(row.Area_Name ?? row.name ?? `Station ${row.Serial_No ?? row.id ?? ''}`),
+      district: "",
+      state: "",
+      latitude: Number(row.Latitude ?? row.latitude),
+      longitude: Number(row.Longitude ?? row.longitude),
+      currentLevel: 0,
+      status: statusMap[String(row.DWLR_Status ?? '').trim()] ?? "normal",
+      batteryLevel: 100,
+      signalStrength: 100,
+      availabilityIndex: 1,
+      lastUpdated: new Date().toISOString(),
+      aquiferType: "",
+      specificYield: 0,
+      installationDate: new Date().toISOString().slice(0, 10),
+      depth: 0,
+      oxygenLevel: undefined,
+      temperature: undefined,
+      week: undefined,
+      recentReadings: [],
+      rechargeData: [],
+    };
+  };
+
+  // Fetch stations from Supabase (exclusively from map_pinpoints2)
+  const fetchStations = useCallback(async () => {
+    try {
+      setIsLoadingStations(true);
+      setStationsError(null);
+
+      const { data: pinData, error: pinErr } = await supabase
+        .from('map_pinpoints2')
+        .select('"Serial_No", "Area_Name", "Latitude", "Longitude", "DWLR_Status"');
+
+      if (pinErr) throw pinErr;
+      setStations((pinData ?? []).map(mapPinpointRowToStation));
+    } catch (err: any) {
+      console.log('Supabase fetch error:', err);
+      setStationsError(err?.message || 'Failed to load stations');
+    } finally {
+      setIsLoadingStations(false);
+    }
+  }, []);
 
   // Request location permission and get current location
   const requestLocationPermission = useCallback(async () => {
@@ -336,14 +433,16 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     }
   }, []);
 
-  // Get nearby stations based on user location
+  // Get nearby stations based on user location (within a radius if possible)
   const nearbyStations = useMemo(() => {
     if (!userLocation) {
       // Return first 4 stations if no location available
       return stations.slice(0, 4);
     }
-    
-    // Calculate distances and sort by proximity
+
+    const RADIUS_KM = 50; // configurable nearby radius
+
+    // Calculate distances
     const stationsWithDistance = stations.map(station => ({
       ...station,
       distance: calculateDistance(
@@ -353,16 +452,24 @@ export const [StationsProvider, useStations] = createContextHook(() => {
         station.longitude
       )
     }));
-    
-    return stationsWithDistance
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 6); // Return top 6 nearest stations
+
+    // Filter within radius, else fallback to closest 6
+    const withinRadius = stationsWithDistance.filter(s => (s as any).distance <= RADIUS_KM);
+    const sorted = (withinRadius.length > 0 ? withinRadius : stationsWithDistance)
+      .sort((a, b) => (a as any).distance - (b as any).distance);
+
+    return sorted.slice(0, 6);
   }, [stations, userLocation]);
 
   // Auto-request location on mount
   useEffect(() => {
     requestLocationPermission();
   }, [requestLocationPermission]);
+
+  // Load stations on mount and on focus changes in future
+  useEffect(() => {
+    fetchStations();
+  }, [fetchStations]);
 
   const getStationById = useCallback((id: string) => {
     return stations.find(station => station.id === id);
@@ -396,8 +503,10 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     locationPermission,
     isLoadingLocation,
     locationError,
+    isLoadingStations,
+    stationsError,
     getStationById,
     getAnalytics,
     requestLocationPermission,
-  }), [stations, alerts, nearbyStations, userLocation, locationPermission, isLoadingLocation, locationError, getStationById, getAnalytics, requestLocationPermission]);
+  }), [stations, alerts, nearbyStations, userLocation, locationPermission, isLoadingLocation, locationError, isLoadingStations, stationsError, getStationById, getAnalytics, requestLocationPermission]);
 });
