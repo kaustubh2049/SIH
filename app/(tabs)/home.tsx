@@ -89,7 +89,7 @@ function MapScreenContent() {
           <Search size={20} color="#64748b" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search stations or districts..."
+            placeholder="Search "
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
