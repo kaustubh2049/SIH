@@ -327,13 +327,15 @@ export const [StationsProvider, useStations] = createContextHook(() => {
       Heavy: "critical",
       None: "normal",
     };
+    const lat = parseFloat(String(row.Latitude ?? row.latitude ?? ''));
+    const lon = parseFloat(String(row.Longitude ?? row.longitude ?? ''));
     return {
       id: String(row.Serial_No ?? row.id ?? row.P_Key ?? Math.random()),
       name: String(row.Area_Name ?? row.name ?? `Station ${row.Serial_No ?? row.id ?? ''}`),
       district: "",
       state: "",
-      latitude: Number(row.Latitude ?? row.latitude),
-      longitude: Number(row.Longitude ?? row.longitude),
+      latitude: isFinite(lat) ? lat : 0,
+      longitude: isFinite(lon) ? lon : 0,
       currentLevel: 0,
       status: statusMap[String(row.DWLR_Status ?? '').trim()] ?? "normal",
       batteryLevel: 100,
@@ -359,11 +361,14 @@ export const [StationsProvider, useStations] = createContextHook(() => {
       setStationsError(null);
 
       const { data: pinData, error: pinErr } = await supabase
-        .from('map_pinpoints2')
-        .select('"Serial_No", "Area_Name", "Latitude", "Longitude", "DWLR_Status"');
+        .from('pin_point_database')
+        .select('*');
 
       if (pinErr) throw pinErr;
-      setStations((pinData ?? []).map(mapPinpointRowToStation));
+      const mapped = (pinData ?? []).map(mapPinpointRowToStation)
+        .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude));
+      console.log('Supabase pin_point_database rows:', pinData?.length ?? 0, 'mapped(valid):', mapped.length);
+      setStations(mapped);
     } catch (err: any) {
       console.log('Supabase fetch error:', err);
       setStationsError(err?.message || 'Failed to load stations');
