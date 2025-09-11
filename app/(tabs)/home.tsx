@@ -2,16 +2,16 @@ import { StationCard } from "@/components/station-card";
 import { StationMap } from "@/components/station-map";
 import { useStations } from "@/providers/stations-provider";
 import { router } from "expo-router";
-import { Bell, Filter, MapPin, RefreshCw, Search } from "lucide-react-native";
+import { Bell, Droplet, Filter, Info, MapPin, RefreshCw, Search } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -103,12 +103,44 @@ function MapScreenContent() {
       {/* Live Location Estimated Groundwater Level */}
       <View style={styles.estimateContainer}>
         <View style={styles.estimateCard}>
-          <Text style={styles.estimateTitle}>Estimated Groundwater Level (Your Location)</Text>
-          <Text style={styles.estimateValue}>
-            {estimatedLevel != null ? `${estimatedLevel.toFixed(2)}m` : (userLocation ? '—' : 'Enable location to estimate')}
-          </Text>
-          {userLocation && (
-            <Text style={styles.estimateSubtext}>Based on nearby stations (IDW)</Text>
+          <View style={styles.estimateHeader}>
+            <View style={styles.estimateIconWrap}>
+              <Droplet size={18} color="#0ea5e9" />
+            </View>
+            <Text style={styles.estimateTitle}>Estimated Groundwater Level</Text>
+            {userLocation && (
+              <View style={styles.liveBadge}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveBadgeText}>Live</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.estimateValueRow}>
+            {estimatedLevel != null ? (
+              <>
+                <Text style={styles.estimateValue}>{estimatedLevel.toFixed(2)}</Text>
+                <Text style={styles.estimateUnit}>m</Text>
+              </>
+            ) : (
+              <Text style={styles.estimatePlaceholder}>
+                {userLocation ? '—' : 'Location needed to estimate'}
+              </Text>
+            )}
+          </View>
+
+          {userLocation ? (
+            <View style={styles.estimateInfoRow}>
+              <Info size={14} color="#075985" />
+              <Text style={styles.estimateSubtext}>Based on nearby stations (IDW)</Text>
+            </View>
+          ) : (
+            <View style={styles.estimateActions}>
+              <TouchableOpacity style={styles.enableButton} onPress={requestLocationPermission}>
+                <MapPin size={16} color="#ffffff" />
+                <Text style={styles.enableButtonText}>Enable Location</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -253,6 +285,26 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#bae6fd",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  estimateHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  estimateIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
   },
   estimateTitle: {
     fontSize: 14,
@@ -260,15 +312,76 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontWeight: "600",
   },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ef4444",
+    marginRight: 6,
+  },
+  liveBadgeText: {
+    fontSize: 12,
+    color: "#b91c1c",
+    fontWeight: "600",
+  },
+  estimateValueRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 4,
+  },
   estimateValue: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "700",
     color: "#0ea5e9",
+  },
+  estimateUnit: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0ea5e9",
+    marginLeft: 6,
+    marginBottom: 2,
+  },
+  estimatePlaceholder: {
+    fontSize: 14,
+    color: "#075985",
+    opacity: 0.9,
+  },
+  estimateInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   estimateSubtext: {
     marginTop: 4,
     fontSize: 12,
     color: "#075985",
+    marginLeft: 6,
+  },
+  estimateActions: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  enableButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0ea5e9",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  enableButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    marginLeft: 8,
+    fontSize: 14,
   },
   bottomSheet: {
     position: "absolute",

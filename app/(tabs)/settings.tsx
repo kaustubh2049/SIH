@@ -1,15 +1,16 @@
 import { useAuth } from "@/providers/auth-provider";
+import { useTheme } from "@/providers/theme-provider";
 import { router } from "expo-router";
-import { ChevronRight, LogOut, User, Bell, Globe, Database, HelpCircle } from "lucide-react-native";
+import { Bell, ChevronRight, Database, Globe, HelpCircle, LogOut, Moon, User } from "lucide-react-native";
 import React from "react";
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,6 +19,8 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState<boolean>(true);
   const [useMetricUnits, setUseMetricUnits] = React.useState<boolean>(true);
   const insets = useSafeAreaInsets();
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
 
   const handleLogout = () => {
     Alert.alert(
@@ -111,6 +114,19 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
           <View style={styles.settingsGroup}>
+            <SettingItem
+              icon={<Moon size={20} color="#0891b2" />}
+              title="Dark Mode"
+              subtitle={isDark ? "On" : "Off"}
+              rightElement={
+                <Switch
+                  value={isDark}
+                  onValueChange={(val) => setTheme(val ? "dark" : "light")}
+                  trackColor={{ false: "#e2e8f0", true: "#0891b2" }}
+                  thumbColor={isDark ? "#ffffff" : "#f4f3f4"}
+                />
+              }
+            />
             <SettingItem
               icon={<Globe size={20} color="#0891b2" />}
               title="Units"

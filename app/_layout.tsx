@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/providers/auth-provider";
 import { StationsProvider } from "@/providers/stations-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -33,7 +34,9 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <StationsProvider>
-            <RootLayoutNav />
+            <ThemeProvider>
+              <RootLayoutNav />
+            </ThemeProvider>
           </StationsProvider>
         </AuthProvider>
       </GestureHandlerRootView>
