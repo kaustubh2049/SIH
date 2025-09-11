@@ -2,16 +2,16 @@ import { MetadataTab } from "@/components/metadata-tab";
 import { RechargeTab } from "@/components/recharge-tab";
 import { TrendsTab } from "@/components/trends-tab";
 import { WaterLevelChart } from "@/components/water-level-chart";
-import { StationsProvider, useStations } from "@/providers/stations-provider";
+import { useStations } from "@/providers/stations-provider";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Battery, Signal } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -174,9 +174,7 @@ function StationDetailContent() {
 
 export default function StationDetailScreen() {
   return (
-    <StationsProvider>
-      <StationDetailContent />
-    </StationsProvider>
+    <StationDetailContent />
   );
 }
 
