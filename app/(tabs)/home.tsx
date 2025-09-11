@@ -1,17 +1,17 @@
 import { StationCard } from "@/components/station-card";
 import { StationMap } from "@/components/station-map";
-import { StationsProvider, useStations } from "@/providers/stations-provider";
+import { useStations } from "@/providers/stations-provider";
 import { router } from "expo-router";
 import { Bell, Filter, MapPin, RefreshCw, Search } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,7 +22,8 @@ function MapScreenContent() {
     userLocation, 
     isLoadingLocation, 
     locationError, 
-    requestLocationPermission 
+    requestLocationPermission,
+    estimatedLevel,
   } = useStations();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isBottomSheetExpanded, setIsBottomSheetExpanded] = useState<boolean>(false);
@@ -99,6 +100,19 @@ function MapScreenContent() {
         </TouchableOpacity>
       </View>
 
+      {/* Live Location Estimated Groundwater Level */}
+      <View style={styles.estimateContainer}>
+        <View style={styles.estimateCard}>
+          <Text style={styles.estimateTitle}>Estimated Groundwater Level (Your Location)</Text>
+          <Text style={styles.estimateValue}>
+            {estimatedLevel != null ? `${estimatedLevel.toFixed(2)}m` : (userLocation ? '—' : 'Enable location to estimate')}
+          </Text>
+          {userLocation && (
+            <Text style={styles.estimateSubtext}>Based on nearby stations (IDW)</Text>
+          )}
+        </View>
+      </View>
+
       {/* Map */}
       <View style={styles.mapContainer}>
         <StationMap
@@ -143,9 +157,7 @@ function MapScreenContent() {
 
 export default function MapScreen() {
   return (
-    <StationsProvider>
-      <MapScreenContent />
-    </StationsProvider>
+    <MapScreenContent />
   );
 }
 
@@ -229,6 +241,34 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+  },
+  estimateContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: "#ffffff",
+  },
+  estimateCard: {
+    backgroundColor: "#e0f2fe",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+  },
+  estimateTitle: {
+    fontSize: 14,
+    color: "#0369a1",
+    marginBottom: 6,
+    fontWeight: "600",
+  },
+  estimateValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0ea5e9",
+  },
+  estimateSubtext: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#075985",
   },
   bottomSheet: {
     position: "absolute",

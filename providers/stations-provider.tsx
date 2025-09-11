@@ -354,21 +354,68 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     };
   };
 
-  // Fetch stations from Supabase (exclusively from map_pinpoints2)
+  // Fetch stations from Supabase using ONLY recent_data (do not use pin_point_database)
   const fetchStations = useCallback(async () => {
     try {
       setIsLoadingStations(true);
       setStationsError(null);
 
-      const { data: pinData, error: pinErr } = await supabase
-        .from('pin_point_database')
-        .select('*');
+      // Fetch recent groundwater data (latest first) from recent_data
+      const { data: recentData, error: recentErr } = await supabase
+        .from('recent_data')
+        .select('*')
+        .order('Date', { ascending: false });
 
-      if (pinErr) throw pinErr;
-      const mapped = (pinData ?? []).map(mapPinpointRowToStation)
+      if (recentErr) throw recentErr;
+
+      // Deduplicate by Serial_No to keep only the latest record per station
+      const latestBySerial: Record<string, any> = {};
+      for (const row of (recentData ?? [])) {
+        const serial = String(row.Serial_No ?? row.serial_no ?? '');
+        if (!serial) continue;
+        if (!latestBySerial[serial]) {
+          latestBySerial[serial] = row;
+        }
+      }
+
+      // Map recent_data rows to Station objects
+      const mappedFromRecent: Station[] = Object.values(latestBySerial)
+        .map((row: any) => {
+          const lat = Number(row.Latitude);
+          const lon = Number(row.Longitude);
+          const level = Number(row.Groundwater_Level_m);
+          const temp = row.Temperature_C != null ? Number(row.Temperature_C) : undefined;
+          const oxy = row.Oxygen_mgL != null ? Number(row.Oxygen_mgL) : undefined;
+          const dateStr = row.Date ? new Date(row.Date).toISOString() : new Date().toISOString();
+
+          return {
+            id: String(row.Serial_No),
+            name: String(row.Area_Name ?? row.Serial_No),
+            district: "",
+            state: "",
+            latitude: Number.isFinite(lat) ? lat : 0,
+            longitude: Number.isFinite(lon) ? lon : 0,
+            currentLevel: Number.isFinite(level) ? level : 0,
+            status: "normal",
+            batteryLevel: 100,
+            signalStrength: 100,
+            availabilityIndex: 1,
+            lastUpdated: dateStr,
+            aquiferType: "",
+            specificYield: 0,
+            installationDate: new Date().toISOString().slice(0,10),
+            depth: 0,
+            oxygenLevel: oxy,
+            temperature: temp,
+            week: (() => { const d = new Date(dateStr); const oneJan = new Date(d.getFullYear(), 0, 1); const dayOfYear = Math.floor((d.getTime() - oneJan.getTime()) / 86400000) + 1; return Math.ceil(dayOfYear / 7); })(),
+            recentReadings: [ { timestamp: dateStr, level: Number.isFinite(level) ? level : 0, temperature: temp } ],
+            rechargeData: [],
+          } as Station;
+        })
         .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude));
-      console.log('Supabase pin_point_database rows:', pinData?.length ?? 0, 'mapped(valid):', mapped.length);
-      setStations(mapped);
+
+      console.log('Supabase recent_data rows:', recentData?.length ?? 0, 'mapped(valid):', mappedFromRecent.length);
+      setStations(mappedFromRecent);
     } catch (err: any) {
       console.log('Supabase fetch error:', err);
       setStationsError(err?.message || 'Failed to load stations');
@@ -466,6 +513,41 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     return sorted.slice(0, 6);
   }, [stations, userLocation]);
 
+  // Estimated groundwater level at user's live location via IDW (k-nearest)
+  const estimatedLevel = useMemo(() => {
+    if (!userLocation) return null as number | null;
+    const candidates = stations
+      .filter(s => Number.isFinite(s.currentLevel) && Number.isFinite(s.latitude) && Number.isFinite(s.longitude));
+    if (candidates.length === 0) return null as number | null;
+
+    // Compute distances
+    const withDistance = candidates.map(s => ({
+      station: s,
+      distanceKm: calculateDistance(userLocation.latitude, userLocation.longitude, s.latitude, s.longitude),
+    }));
+
+    // If any station is exactly at user's location, return its level
+    const atSameSpot = withDistance.find(x => x.distanceKm === 0);
+    if (atSameSpot) return atSameSpot.station.currentLevel;
+
+    // Use k nearest
+    const K = 5;
+    const P = 1; // IDW power
+    const MIN_DIST = 0.001; // km safeguard
+    const nearest = withDistance.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, K);
+
+    let numerator = 0;
+    let denominator = 0;
+    for (const item of nearest) {
+      const d = Math.max(item.distanceKm, MIN_DIST);
+      const w = 1 / Math.pow(d, P);
+      numerator += item.station.currentLevel * w;
+      denominator += w;
+    }
+    if (denominator === 0) return null as number | null;
+    return numerator / denominator;
+  }, [stations, userLocation]);
+
   // Auto-request location on mount
   useEffect(() => {
     requestLocationPermission();
@@ -504,6 +586,7 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     stations,
     alerts,
     nearbyStations,
+    estimatedLevel,
     userLocation,
     locationPermission,
     isLoadingLocation,
