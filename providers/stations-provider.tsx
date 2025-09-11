@@ -212,45 +212,50 @@ const mockStations: Station[] = [
 const mockAlerts: Alert[] = [
   {
     id: "alert_001",
-    stationId: "DWLR_003",
-    stationName: "Muzaffarpur East",
+    stationId: "DWLR_001",
+    stationName: "Colaba",
     type: "critical",
     title: "Critical Water Level Drop",
-    message: "Water level has dropped below critical threshold of 25m. Immediate attention required.",
-    timestamp: "2024-01-15T09:45:00Z",
+    message:
+      "Water level has dropped below critical threshold of 2m. Immediate action required to avoid shortages.",
+    timestamp: "2025-09-11T09:45:00Z",
     isRead: false,
   },
   {
     id: "alert_002",
     stationId: "DWLR_002",
-    stationName: "Gaya North",
+    stationName: "Worli",
     type: "warning",
     title: "Low Battery Alert",
-    message: "Station battery level is at 45%. Maintenance required soon.",
-    timestamp: "2024-01-15T08:30:00Z",
+    message:
+      "Station battery level is at 40%. Please schedule maintenance soon.",
+    timestamp: "2025-09-11T08:30:00Z",
     isRead: false,
   },
   {
     id: "alert_003",
-    stationId: "DWLR_004",
-    stationName: "Darbhanga Central",
+    stationId: "DWLR_003",
+    stationName: "Bandra West",
     type: "info",
     title: "Recharge Event Detected",
-    message: "Significant groundwater recharge detected after recent rainfall.",
-    timestamp: "2024-01-15T07:15:00Z",
+    message:
+      "Groundwater recharge observed after heavy rainfall across Western Suburbs.",
+    timestamp: "2025-09-11T07:15:00Z",
     isRead: true,
   },
   {
     id: "alert_004",
-    stationId: "DWLR_005",
-    stationName: "Bhagalpur South",
+    stationId: "DWLR_004",
+    stationName: "Andheri East",
     type: "warning",
     title: "Declining Trend Alert",
-    message: "Water level showing consistent declining trend over past 7 days.",
-    timestamp: "2024-01-14T16:20:00Z",
+    message:
+      "Water level showing consistent declining trend over the past 10 days.",
+    timestamp: "2025-09-10T16:20:00Z",
     isRead: false,
   },
 ];
+
 
 // Helper function to calculate distance between two coordinates
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -568,10 +573,10 @@ export const [StationsProvider, useStations] = createContextHook(() => {
     const criticalStations = stations.filter(station => station.status === "critical").length;
 
     const regionalData = [
-      { state: "Bihar", avgLevel: 16.2, status: "warning" as const },
-      { state: "Uttar Pradesh", avgLevel: 22.8, status: "critical" as const },
-      { state: "West Bengal", avgLevel: 11.5, status: "normal" as const },
-      { state: "Jharkhand", avgLevel: 18.9, status: "warning" as const },
+      { state: "Pune", avgLevel: 16.2, status: "warning" as const },
+      { state: "Thane", avgLevel: 22.8, status: "critical" as const },
+      { state: "Mira Bhyandar", avgLevel: 11.5, status: "normal" as const },
+      { state: "Nagpur", avgLevel: 18.9, status: "warning" as const },
     ];
 
     return {
